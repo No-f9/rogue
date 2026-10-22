@@ -104,6 +104,31 @@ input.txt:focus-visible{outline:2px solid var(--amber)}
 .scores th{color:var(--mute);font-weight:400}
 .scores .me td{color:var(--amber)}
 .tw{overflow-x:auto}
+#dexBtn{position:relative}
+#dexBtn.fresh::after{content:"";position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--amber)}
+.dexhead{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px;margin:0 0 4px}
+.dexhead h2{margin:0}
+.dexhead .cnt{font-variant-numeric:tabular-nums;color:var(--mute);font-size:12.5px}
+.dexhead .cnt b{color:var(--amber);font-weight:400;font-size:16px;font-family:var(--display)}
+.dexbar{height:4px;background:var(--rule);margin:6px 0 12px}
+.dexbar i{display:block;height:100%;background:var(--amber)}
+.dextabs{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 6px}
+.dextabs .btn{min-height:34px;padding:0 9px;font-size:12.5px;display:flex;gap:5px;align-items:center}
+.dextabs .btn span{color:var(--mute);font-size:11px;font-variant-numeric:tabular-nums}
+.dextabs .btn[aria-selected="true"]{border-color:var(--amber);color:var(--amber)}
+.dextabs .btn.fresh{box-shadow:inset 0 -2px 0 var(--amber)}
+.dexlist{display:flex;flex-direction:column}
+.dx{display:grid;grid-template-columns:1.7em minmax(0,1fr);gap:2px 10px;padding:9px 2px;border-bottom:1px solid var(--rule)}
+.dx .g{font-family:var(--display);font-size:20px;text-align:center;line-height:1.25;grid-row:span 3}
+.dx .t{display:flex;flex-wrap:wrap;gap:2px 10px;align-items:baseline;min-width:0}
+.dx .nm{font-weight:700}
+.dx .mt{font-size:11.5px;color:var(--mute);font-variant-numeric:tabular-nums}
+.dx .ds{font-size:12.5px;line-height:1.6;min-width:0}
+.dx .now{font-size:11.5px;color:var(--cyan)}
+.dx.unk .nm{color:var(--mute);letter-spacing:.1em}
+.dx.unk .ds{color:var(--mute)}
+.dx.unk .g{opacity:.35}
+.dx .nw{font-size:10px;color:var(--ink);background:var(--amber);padding:1px 5px;border-radius:2px;letter-spacing:.06em}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -133,11 +158,11 @@ input.txt:focus-visible{outline:2px solid var(--amber)}
       <button class="btn" data-act="throw">投げる<kbd>t</kbd></button>
       <button class="btn" data-act="zap">杖<kbd>z</kbd></button>
       <button class="btn" data-act="eat">食べる<kbd>e</kbd></button>
-      <button class="btn" data-act="log">履歴<kbd>m</kbd></button>
+      <button class="btn" data-act="dex" id="dexBtn">図鑑<kbd>D</kbd></button>
       <button class="btn" data-act="zoom" id="zoomBtn">全体図<kbd>v</kbd></button>
       <button class="btn" data-act="help">遊び方<kbd>?</kbd></button>
     </div>
-    <p id="keyhelp">移動 <b>hjklyubn</b>・矢印・テンキー。大文字かShiftで走る。<br><b>q</b>飲む <b>r</b>読む <b>e</b>食べる <b>w</b>武器 <b>W</b>着る <b>T</b>脱ぐ <b>P</b>指輪 <b>R</b>外す <b>d</b>置く <b>s</b>探す <b>S</b>10回探す</p>
+    <p id="keyhelp">移動 <b>hjklyubn</b>・矢印・テンキー。大文字かShiftで走る。<br><b>q</b>飲む <b>r</b>読む <b>e</b>食べる <b>w</b>武器 <b>W</b>着る <b>T</b>脱ぐ <b>P</b>指輪 <b>R</b>外す <b>d</b>置く <b>s</b>探す <b>S</b>10回探す <b>D</b>図鑑 <b>m</b>履歴</p>
   </div>
 </div>
 <div id="overlay" hidden><div id="panel" role="dialog" aria-modal="true"></div></div>
@@ -445,6 +470,7 @@ function removeMon(m){const i=G.monsters.indexOf(m);if(i>=0)G.monsters.splice(i,
 function killMon(m,how){
   const vis=computeVis(false);
   msg(how||`${mname(m,vis)}を倒した`);
+  {const r=dexMon(m.c);dexSeen(m.c);r.kills++;dexDirty=true;}
   P.exp+=m.exp;
   removeMon(m);
   if(m.pack)fall(m.pack,m.x,m.y);
@@ -534,7 +560,7 @@ function breathLine(m){
   let d=roll(6,6);if(save(VS_BREATH))d=Math.floor(d/2);
   flash(path,'*','red');
   msg(`${mname(m)}が炎を吐いた`);
-  P.hp-=d;if(P.hp<=0)die(MON.D.n);
+  P.hp-=d;if(P.hp<=0)die(MON.D.n,'D');
   return true;
 }
 function monAttack(m){
@@ -546,18 +572,18 @@ function monAttack(m){
   if(!hit){msg(`${name}の攻撃は外れた`);return;}
   P.hp-=dmg;
   msg(`${name}の攻撃が当たった`);
-  if(P.hp<=0){die(MON[m.c].n);return;}
+  if(P.hp<=0){die(MON[m.c].n,m.c);return;}
   if(m.cancelled)return;
   switch(m.c){
     case 'A':rustArmor();break;
     case 'I':if(!save(VS_MAGIC)){P.eff.frozen+=rnd(2)+2;msg('体が凍りついて動けない');if(P.eff.frozen>50)die('凍死');}break;
     case 'R':if(!sustained()&&!save(VS_POISON)){if(P.str>3)P.str--;msg('毒が回って力が抜けていく');}break;
     case 'W':if(rnd(100)<15){
-      if(P.lvl===1&&P.exp===0){die(MON.W.n);return;}
+      if(P.lvl===1&&P.exp===0){die(MON.W.n,'W');return;}
       if(P.lvl>1){P.lvl--;P.exp=P.lvl===1?0:EXPT[P.lvl-2];}else P.exp=0;
       const h=roll(1,10);P.maxhp=Math.max(1,P.maxhp-h);P.hp=Math.min(P.hp,P.maxhp);
       msg('生命の力を吸い取られた');}break;
-    case 'V':if(rnd(100)<30){const h=roll(1,3);P.maxhp-=h;P.hp-=h;msg('血を吸われて体が弱っていく');if(P.maxhp<=0||P.hp<=0)die(MON.V.n);}break;
+    case 'V':if(rnd(100)<30){const h=roll(1,3);P.maxhp-=h;P.hp-=h;msg('血を吸われて体が弱っていく');if(P.maxhp<=0||P.hp<=0)die(MON.V.n,'V');}break;
     case 'L':if(!save(VS_MAGIC)){
       const lost=Math.min(P.gold,rnd(50+10*G.level)+2*(save(VS_MAGIC)?1:5));
       P.gold-=lost;removeMon(m);msg(lost>0?'財布が急に軽くなった気がする':'レプラコーンは何も取れずに消えた');}break;
@@ -917,8 +943,9 @@ function spawnWanderer(){
   const p=findFloor(pick(rooms));if(!p)return;
   const m=newMon(randMonLetter(true),p.x,p.y,false);m.awake=true;G.monsters.push(m);
 }
-function die(cause){
+function die(cause,letter){
   if(G.over)return;
+  if(letter){const r=dexMon(letter);r.deaths++;dexDirty=true;}
   P.hp=0;G.over=true;
   G.result={won:false,cause,level:G.level,gold:P.gold,turn:G.turn};
   finishGame();
@@ -931,6 +958,7 @@ function win(){
 }
 function finishGame(){
   store.del(SAVEKEY);
+  dexSync();saveDex();
   const s=loadScores();const entry={name:G.name,gold:G.result.gold,level:G.result.level,cause:G.result.cause,won:G.result.won,date:new Date().toISOString().slice(0,10),me:Date.now()};
   s.push(entry);s.sort((a,b)=>b.gold-a.gold);G.result.me=entry.me;
   store.set(SCOREKEY,JSON.stringify(s.slice(0,10)));
@@ -1016,6 +1044,7 @@ const cmd={
   stairs,
   log:()=>openLog(),
   help:()=>openHelp(),
+  dex:()=>openDex(false),
   zoom:()=>{ui.forceFit=!ui.forceFit;layout();},
 };
 
@@ -1106,6 +1135,7 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','
 function refresh(){
   render();
   if(!G)return;
+  dexSync();
   const hun=['','空腹','衰弱','瀕死'][P.hs];
   const fl=[];const e=P.eff;
   if(e.conf)fl.push('混乱');if(e.blind)fl.push('盲目');if(e.haste)fl.push('加速');if(e.halluc)fl.push('幻覚');if(e.held)fl.push('捕縛');if(e.stuck)fl.push('罠');if(G.hasAmulet)fl.push('魔除け');
@@ -1127,7 +1157,84 @@ function refresh(){
   if(!G.over)saveGame();
 }
 let saveTimer=0;
-function saveGame(){clearTimeout(saveTimer);saveTimer=setTimeout(()=>{if(G&&!G.over)store.set(SAVEKEY,JSON.stringify(G));},250);}
+function saveGame(){clearTimeout(saveTimer);saveTimer=setTimeout(()=>{if(G&&!G.over)store.set(SAVEKEY,JSON.stringify(G));saveDex();},250);}
+
+/* ---------- 図鑑 ---------- */
+const DEXKEY='rogue.dex.v1';
+const DESC={
+potion:{conf:'しばらく思った方向に動けなくなる',halluc:'しばらく怪物や物の見た目がでたらめになる',poison:'筋力が1〜3下がる。力維持の指輪で防げる',str:'筋力が1上がる',seeinv:'透明な怪物が見えるようになる',heal:'体力を回復する。満タンを超えると最大値が1上がる。盲目と幻覚も治る',mdet:'その階の怪物の位置が一瞬わかる',magic:'その階にある魔法の品の位置がわかる',raise:'経験レベルが1上がる',xheal:'体力を大きく回復する。最大値も1〜2上がる',haste:'しばらく2倍の速さで動ける',restore:'下がった筋力を元に戻す',blind:'長いあいだ目が見えなくなる'},
+scroll:{confmon:'次に殴った怪物を混乱させる',map:'その階の地図がわかり、隠し扉も現れる',hold:'周りの怪物が、攻撃されるまで動けなくなる',sleep:'自分が数ターン眠ってしまう',encharm:'着ている鎧の防御が1上がり、呪いも解ける',identify:'持ち物を1つ選んで正体を明かす',scare:'床に置くと、その上にいる間は怪物に攻撃されない。読むと効果はない',fooddet:'その階の食べ物の位置がわかる',tele:'同じ階のどこかへ飛ぶ',enchwpn:'構えている武器の命中か威力が1上がり、呪いも解ける',create:'すぐ隣に怪物が現れる',uncurse:'身に着けている物の呪いがすべて解ける',aggr:'その階の怪物がすべて目を覚ます',protect:'着ている鎧が二度と錆びなくなる'},
+ring:{prot:'防御が上がり、罠や魔法にも強くなる',addstr:'筋力が上がる',sustain:'毒で筋力が下がらなくなる',search:'毎ターン自動で周囲を探す',seeinv:'透明な怪物が見える',adorn:'きれいなだけで効果はない',aggr:'怪物が常に目を覚ます。必ず呪われている',dex:'攻撃が当たりやすくなる',dmg:'攻撃のダメージが上がる',regen:'体力の回復が早くなるが、お腹も空きやすい',digest:'お腹の減りが半分になる',tele:'ときどき勝手にワープする。必ず呪われている',stealth:'怪物が目を覚ましにくくなる',maint:'鎧が錆びなくなる'},
+wand:{light:'いる部屋を明るくする',invis:'当たった怪物を透明にしてしまう',elec:'直線上の怪物に大ダメージ',fire:'直線上の怪物に大ダメージ',cold:'直線上の怪物に大ダメージ',poly:'当たった怪物を別の怪物に変える',missile:'直線上の怪物にダメージ',hastem:'当たった怪物を速くしてしまう',slowm:'当たった怪物の動きを遅くする',drain:'自分の体力の半分を使い、部屋の怪物にその2倍のダメージを分けて与える',nothing:'何も起きない',tpaway:'当たった怪物を階のどこかへ飛ばす',tpto:'当たった怪物を自分の隣へ呼ぶ',cancel:'当たった怪物の特殊攻撃を封じ、透明化も解く'},
+weapon:{mace:'冒険の始めから持っている武器',sword:'扱いやすい片手の剣',bow:'構えた状態で矢を投げると射撃になる',arrow:'弓で射ると威力が上がる。束で見つかる',dagger:'投げても使える。数本まとめて見つかる',/*2h*/'2h':'殴りでは最強の武器',dart:'投げて使う。束で見つかる',shuriken:'投げて使う。投げ物では最強',spear:'殴っても投げても使える'}};
+const MDESC={A:'当たると鎧が錆びて弱くなる',B:'ふらふらと不規則に飛び回る',C:'中くらいの深さに出る手強い戦士。物を持っていることがある',D:'離れた所から炎を吐く、ダンジョン最強の怪物',E:'最初の階でよく出会う弱い鳥',F:'その場から動かないが、捕まると逃げられず締め付けがだんだん強くなる',G:'強力で、傷がすぐに治る',H:'序盤に出るまっすぐな相手',I:'当たると体が凍りついて動けなくなる',J:'深い階に潜む強敵。重い2回攻撃',K:'序盤に多い小さな猛禽',L:'金貨を盗んで消える。倒すと金貨を落とす',M:'視線で相手を混乱させる',N:'持ち物を1つ盗んで消える',O:'物を持っていることがある',P:'透明で姿が見えない',Q:'2回攻撃してくる獣',R:'毒で筋力を下げてくる',S:'序盤の弱い相手',T:'力が強く、傷がすぐに治る',U:'鋭い角で3回攻撃してくる',V:'血を吸って最大体力を減らす。傷もすぐに治る',W:'生命を吸い取り、経験レベルを下げる',X:'物に化けて待ち伏せする',Y:'2回攻撃してくる雪男',Z:'動きは素直だが一撃が重い'};
+let DEX=(()=>{try{return JSON.parse(store.get(DEXKEY)||'null')||{};}catch(e){return {};}})();
+DEX.items=DEX.items||{};DEX.mons=DEX.mons||{};DEX.fresh=DEX.fresh||[];
+let dexDirty=false;
+function itemKey(cls,kind){const t={potion:POTIONS,scroll:SCROLLS,ring:RINGS,wand:WANDS,weapon:WEAPONS}[cls];return cls+':'+(t?t[kind].id:kind);}
+function dexItem(key){if(!DEX.items[key]){DEX.items[key]=1;DEX.fresh.push(key);dexDirty=true;}}
+function dexMon(c){return DEX.mons[c]||(DEX.mons[c]={seen:0,kills:0,deaths:0});}
+function dexSeen(c){const r=dexMon(c);if(!r.seen){r.seen=1;DEX.fresh.push('mon:'+c);dexDirty=true;}}
+function dexSync(){
+  if(!G)return;
+  for(const cls of ['potion','scroll','ring','wand'])(G.known[cls]||[]).forEach((v,k)=>{if(v)dexItem(itemKey(cls,k));});
+  for(const o of P.pack)if(o.cls==='weapon'||o.cls==='armor'||o.cls==='food'||o.cls==='amulet')dexItem(itemKey(o.cls,o.kind));
+  if(!(P.eff.halluc>0)){const v=computeVis(false);for(const m of G.monsters)if(!m.disguise&&monVisible(m,v))dexSeen(m.c);}
+  const b=$('#dexBtn');if(b)b.classList.toggle('fresh',DEX.fresh.length>0);
+}
+function saveDex(){if(dexDirty){store.set(DEXKEY,JSON.stringify(DEX));dexDirty=false;}}
+const pct=(t,k)=>Math.round(t[k].p*100/t.reduce((a,x)=>a+x.p,0));
+const DEX_TABS=[['mon','怪物'],['potion','薬'],['scroll','巻物'],['ring','指輪'],['wand','杖'],['weapon','武器'],['armor','鎧'],['other','その他']];
+function dexEntries(tab){
+  const cur=G&&!G.over?G:null;
+  const it=(cls,k,o)=>Object.assign({key:itemKey(cls,k),found:!!DEX.items[itemKey(cls,k)]},o);
+  switch(tab){
+    case 'mon':return LVL_MONS.split('').map((c,i)=>{const r=DEX.mons[c]||{};const d=MON[c];
+      return {key:'mon:'+c,found:!!r.seen,g:c,col:'red',name:d.n,desc:MDESC[c],
+        meta:`地下${Math.max(1,i-3)}階〜・Lv${d.lvl}・経験値${d.exp}`,stat:r.seen?`倒した ${r.kills||0}・やられた ${r.deaths||0}`:'',hint:`地下${Math.max(1,i-3)}階ごろから現れる`};});
+    case 'potion':return POTIONS.map((d,k)=>it('potion',k,{g:'!',col:'magenta',name:d.n+'の薬',desc:DESC.potion[d.id],meta:`出やすさ ${pct(POTIONS,k)}%`,now:cur&&cur.known.potion[k]?`今回は ${cur.app.potion[k]}薬`:''}));
+    case 'scroll':return SCROLLS.map((d,k)=>it('scroll',k,{g:'?',col:'text',name:d.n+'の巻物',desc:DESC.scroll[d.id],meta:`出やすさ ${pct(SCROLLS,k)}%`,now:cur&&cur.known.scroll[k]?`今回は「${cur.app.scroll[k]}」`:''}));
+    case 'ring':return RINGS.map((d,k)=>it('ring',k,{g:'=',col:'amber',name:d.n+'の指輪',desc:DESC.ring[d.id],meta:`出やすさ ${pct(RINGS,k)}%`,now:cur&&cur.known.ring[k]?`今回は ${cur.app.ring[k]}の指輪`:''}));
+    case 'wand':return WANDS.map((d,k)=>it('wand',k,{g:'/',col:'blue',name:d.n+'の杖',desc:DESC.wand[d.id],meta:`出やすさ ${pct(WANDS,k)}%`,now:cur&&cur.known.wand[k]?`今回は ${cur.app.wand[k]}の杖`:''}));
+    case 'weapon':return WEAPONS.map((d,k)=>it('weapon',k,{g:')',col:'cyan',name:d.n,desc:DESC.weapon[d.id],meta:`殴り ${d.w}・投げ ${d.t}`}));
+    case 'armor':return ARMORS.map((d,k)=>it('armor',k,{g:']',col:'cyan',name:d.n,desc:k===0?'軽い鎧。錆びない':'',meta:`防御 ${10-d.ac}・出やすさ ${pct(ARMORS,k)}%`}));
+    case 'other':return [
+      it('food',0,{g:':',col:'green',name:'食料',desc:'満腹度を大きく回復する。ときどきひどい味がする'}),
+      it('food',1,{g:':',col:'green',name:'スライムモールド',desc:'おいしい。食料と同じだけお腹が満たされる'}),
+      it('amulet',0,{g:',',col:'magenta',name:'イェンダーの魔除け',desc:'地下26階より深くに眠る。持って地上へ戻れば勝利',hint:'地下26階より深くに眠るという'})];
+  }
+  return [];
+}
+const dexTotal=()=>DEX_TABS.reduce((a,[t])=>a+dexEntries(t).length,0);
+const dexCount=()=>DEX_TABS.reduce((a,[t])=>a+dexEntries(t).filter(e=>e.found).length,0);
+function openDex(fromStart){
+  ui.dexFromStart=!!fromStart;
+  if(!ui.dexTab||!DEX_TABS.some(t=>t[0]===ui.dexTab)){
+    const f=DEX_TABS.find(([t])=>dexEntries(t).some(e=>DEX.fresh.includes(e.key)));
+    ui.dexTab=f?f[0]:'mon';
+  }
+  const tab=ui.dexTab,list=dexEntries(tab);
+  const total=dexTotal(),count=dexCount();
+  const tabs=DEX_TABS.map(([t,l])=>{const es=dexEntries(t);const n=es.filter(e=>e.found).length;const fr=es.some(e=>DEX.fresh.includes(e.key));
+    return `<button class="btn${fr&&t!==tab?' fresh':''}" data-dextab="${t}" role="tab" aria-selected="${t===tab}">${l}<span>${n}/${es.length}</span></button>`;}).join('');
+  const rows=list.map(e=>{
+    const nw=e.found&&DEX.fresh.includes(e.key);
+    if(!e.found)return `<div class="dx unk"><div class="g" style="color:${C[e.col]}">${esc(e.g)}</div><div class="t"><span class="nm">？？？</span></div><div class="ds">${esc(e.hint||'まだ見つけていない')}</div></div>`;
+    return `<div class="dx"><div class="g" style="color:${C[e.col]}">${esc(e.g)}</div>
+      <div class="t"><span class="nm">${esc(e.name)}</span>${nw?'<span class="nw">NEW</span>':''}<span class="mt">${esc(e.meta||'')}</span></div>
+      ${e.desc?`<div class="ds">${esc(e.desc)}</div>`:''}
+      ${e.stat||e.now?`<div class="t">${e.stat?`<span class="mt">${esc(e.stat)}</span>`:''}${e.now?`<span class="now">${esc(e.now)}</span>`:''}</div>`:''}</div>`;}).join('');
+  const close=fromStart?'<button class="btn" data-start="back">戻る</button>':'<button class="btn" data-close>閉じる</button>';
+  openPanel(`<div class="dexhead"><h2>図鑑</h2><span class="cnt"><b>${count}</b> / ${total}</span></div>
+<div class="dexbar"><i style="width:${(count*100/total).toFixed(1)}%"></i></div>
+<div class="dextabs" role="tablist">${tabs}</div>
+<p class="note">${tab==='mon'?'出会った怪物が記録されます。深い階ほど強い怪物が出ます。':tab==='weapon'||tab==='armor'||tab==='other'?'拾うと記録されます。':'正体がわかると記録されます。'}</p>
+<div class="dexlist">${rows}</div><div class="acts2">${close}</div>`,fromStart?'start':'dex');
+  const keys=new Set(list.map(e=>e.key));
+  const before=DEX.fresh.length;DEX.fresh=DEX.fresh.filter(k=>!keys.has(k));
+  if(DEX.fresh.length!==before){dexDirty=true;saveDex();}
+  const b=$('#dexBtn');if(b)b.classList.toggle('fresh',DEX.fresh.length>0);
+}
 
 /* ---------- オーバーレイ ---------- */
 function openPanel(html,kind){ui.overlay=kind||'panel';$('#panel').innerHTML=html;$('#overlay').hidden=false;const f=$('#panel').querySelector('[autofocus],button');if(f)f.focus({preventScroll:true});}
@@ -1192,6 +1299,8 @@ function openHelp(){
 <b>w W T</b><span>武器を構える・鎧を着る・鎧を脱ぐ</span>
 <b>P R</b><span>指輪をはめる・外す</span>
 <b>t z d</b><span>投げる・杖を振る・置く。弓を構えて矢を投げると射撃になる</span>
+<b>D</b><span>図鑑。これまでに見つけた物と出会った怪物が、ゲームをまたいで記録されます</span>
+<b>m</b><span>メッセージ履歴（メッセージ欄のタップでも開けます）</span>
 </div>
 <h3>地図の記号</h3>
 <div class="legend">
@@ -1221,7 +1330,7 @@ function openStart(){
 <pre class="vig">${VIG}</pre>
 <p class="note">1980年のダンジョン探索ゲームを、ブラウザで遊べるように組み直したものです。地下の奥深くからイェンダーの魔除けを持ち帰りましょう。</p>
 <label class="field" for="nameIn">冒険者の名前<input class="txt" id="nameIn" maxlength="16" value="${esc(nm)}" autocomplete="off"></label>
-<div class="acts2">${hasSave?'<button class="btn primary" data-start="load">続きから</button>':''}<button class="btn${hasSave?'':' primary'}" data-start="new">新しく始める</button><button class="btn" data-start="scores">記録</button><button class="btn" data-start="help">遊び方</button></div>`,'start');
+<div class="acts2">${hasSave?'<button class="btn primary" data-start="load">続きから</button>':''}<button class="btn${hasSave?'':' primary'}" data-start="new">新しく始める</button><button class="btn" data-start="scores">記録</button><button class="btn" data-start="dex">図鑑</button><button class="btn" data-start="help">遊び方</button></div>`,'start');
 }
 function scoreTable(me){
   const s=loadScores();
@@ -1232,9 +1341,9 @@ function openScores(){openPanel(`<h2>記録</h2>${scoreTable()}<div class="acts2
 function showEnd(){
   const r=G.result;
   if(r.won){
-    openPanel(`<h2>生還</h2><p>${esc(G.name)}はイェンダーの魔除けを手に地上へ戻った。</p><p class="note">持ち帰った金貨と魔除けの価値をあわせて ${r.gold} 点。${G.turn} ターンの冒険でした。</p>${scoreTable(r.me)}<div class="acts2"><button class="btn primary" data-start="again">もう一度挑む</button></div>`,'end');
+    openPanel(`<h2>生還</h2><p>${esc(G.name)}はイェンダーの魔除けを手に地上へ戻った。</p><p class="note">持ち帰った金貨と魔除けの価値をあわせて ${r.gold} 点。${G.turn} ターンの冒険でした。図鑑 ${dexCount()} / ${dexTotal()}</p>${scoreTable(r.me)}<div class="acts2"><button class="btn primary" data-start="again">もう一度挑む</button></div>`,'end');
   }else{
-    openPanel(`<div class="stone"><div class="rip">安らかに眠れ</div><div class="who">${esc(G.name)}</div><div>金貨 ${r.gold}枚</div><div>地下${r.level}階にて</div><div>${esc(r.cause)}により倒れる</div><div>${new Date().getFullYear()}</div></div><div class="ground"></div>${scoreTable(r.me)}<div class="acts2"><button class="btn primary" data-start="again">もう一度挑む</button><button class="btn" data-start="view">地図を見る</button></div>`,'end');
+    openPanel(`<div class="stone"><div class="rip">安らかに眠れ</div><div class="who">${esc(G.name)}</div><div>金貨 ${r.gold}枚</div><div>地下${r.level}階にて</div><div>${esc(r.cause)}により倒れる</div><div>${new Date().getFullYear()}</div></div><div class="ground"></div><p class="note">図鑑 ${dexCount()} / ${dexTotal()}</p>${scoreTable(r.me)}<div class="acts2"><button class="btn primary" data-start="again">もう一度挑む</button><button class="btn" data-start="view">地図を見る</button></div>`,'end');
   }
 }
 
@@ -1278,7 +1387,7 @@ document.querySelectorAll('#pad .btn').forEach(b=>{
 document.querySelectorAll('#acts .btn').forEach(b=>{
   const a=b.dataset.act;
   if(a==='rest')press(b,()=>{if(!ui.dir)cmd.rest();},()=>{if(!ui.dir)repeatTurns(10,false);});
-  else press(b,()=>{if(ui.dir)cancelDir();if(G&&!G.over||a==='help'||a==='log'||a==='zoom')cmd[a]();});
+  else press(b,()=>{if(ui.dir)cancelDir();if(G&&!G.over||a==='help'||a==='log'||a==='zoom'||a==='dex')cmd[a]();});
 });
 $('#dircancel').addEventListener('click',cancelDir);
 $('#msgs').addEventListener('click',()=>openLog());
@@ -1293,6 +1402,7 @@ $('#overlay').addEventListener('click',e=>{
   const b=e.target.closest('button');
   if(!b){if(e.target.id==='overlay'&&ui.overlay!=='start'&&ui.overlay!=='end')closePanel();return;}
   if(b.hasAttribute('data-close')){closePanel();return;}
+  if(b.dataset.dextab){ui.dexTab=b.dataset.dextab;openDex(ui.dexFromStart);const l=$('#panel');if(l)l.scrollTop=0;return;}
   if(b.dataset.k!==undefined){pickIndex(+b.dataset.k);return;}
   if(b.dataset.c!==undefined){const a=ui.choice[+b.dataset.c];if(a){if(ui.overlay==='choice')closePanel();a[1]();}return;}
   const s=b.dataset.start;
@@ -1301,6 +1411,7 @@ $('#overlay').addEventListener('click',e=>{
     if(s==='load'&&loadGame(store.get(SAVEKEY))){closePanel();ui.logMark=G.log.length;refresh();return;}
     newGame(nm);closePanel();refresh();
   }else if(s==='scores')openScores();
+  else if(s==='dex')openDex(true);
   else if(s==='back')openStart();
   else if(s==='help')openHelp();
   else if(s==='again'){G=null;P=null;render();openStart();}
@@ -1318,7 +1429,7 @@ document.addEventListener('keydown',e=>{
   const d=keyDir(e);
   if(ui.dir){if(d){e.preventDefault();resolveDir(d[0],d[1]);}else if(e.key==='Escape')cancelDir();return;}
   if(d){e.preventDefault();if(d[2])runDir(d[0],d[1]);else act(()=>playerMove(d[0],d[1]));return;}
-  const map={'i':'inv','q':'quaff','r':'read','e':'eat','w':'wield','W':'wear','T':'takeoff','P':'puton','R':'remove','d':'drop','t':'throw','z':'zap','.':'rest','5':'rest','s':'search','?':'help','m':'log','v':'zoom'};
+  const map={'i':'inv','q':'quaff','r':'read','e':'eat','w':'wield','W':'wear','T':'takeoff','P':'puton','R':'remove','d':'drop','t':'throw','z':'zap','.':'rest','5':'rest','s':'search','?':'help','m':'log','D':'dex','v':'zoom'};
   if(e.key==='>'){e.preventDefault();act(descend);return;}
   if(e.key==='<'){e.preventDefault();act(ascend);return;}
   if(e.key==='S'){e.preventDefault();repeatTurns(10,true);return;}
